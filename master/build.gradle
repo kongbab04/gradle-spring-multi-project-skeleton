@@ -1,0 +1,211 @@
+apply plugin: 'eclipse'
+/** 
+ * eclipse 更新時
+ * gradlew.bat clean mkdirs eclipse
+ *
+ * Build時
+ * gradlew.bat clean build
+ *
+ * リアルサーバ用のBuild時
+ * gradlew.bat -Penv=prod clean build
+ * 
+ * ディレクトリの生成が必要なときには　mkdirs　タスク
+ */
+buildscript {
+	ext {
+		
+		//Spring Boot 
+		springBootVersion = '1.1.6.RELEASE'
+		
+		//Spring 
+		springVersion = '4.0.7.RELEASE'
+		
+	}
+
+	repositories {
+		mavenCentral()
+		maven {
+			url 'http://repo.spring.io/libs-release'
+			url 'http://repo.spring.io/milestone'
+			
+		}
+	}
+	dependencies {
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+	}
+}
+
+subprojects {
+	
+	apply plugin: 'java'
+	apply plugin: 'eclipse'
+	apply plugin: 'idea'
+
+	def defaultEncoding = 'UTF-8'
+	[compileJava, compileTestJava]*.options*.encoding = defaultEncoding
+	
+	sourceCompatibility = 1.8
+	targetCompatibility = 1.8
+	
+	//プロジェクトのバージョン
+	version = '0.1'
+ 
+	repositories {
+		mavenCentral()
+	}
+
+	//ソースディレクトリ設定
+	sourceSets {
+	    generated {
+	        java {
+	            srcDirs = ['src/main/generated/']
+	        }
+	    }
+	    main {
+	        resources {
+	            srcDirs = [ 'src/main/resources' ]
+	        }
+	    }
+	}
+	
+	//設定ファイルの切り替え(本番用・テストサーバ用)
+	def environment = project.hasProperty( 'env' ) ? env : 'dev'
+	
+	if( environment.equals( 'prod' ))
+	sourceSets.main.resources.srcDirs 'src/main/resources/production'
+	else
+	sourceSets.main.resources.srcDirs 'src/main/resources/development'
+	
+	println "Target environment: $environment"
+
+	
+ 	
+	dependencies {
+		
+		
+		//Spring boot
+		compile("org.springframework.boot:spring-boot-starter-web:${springBootVersion}")
+		
+		compile("org.springframework.boot:spring-boot-starter-test:${springBootVersion}")
+		
+
+	    	// Logging with SLF4J & LogBack
+		compile("org.slf4j:slf4j-api:1.7.7")
+		compile("ch.qos.logback:logback-classic:1.1.2")
+
+		// util
+		compile("com.google.guava:guava:18.0")
+		compile("com.google.code.gson:gson:2.3")
+		
+
+		testCompile 'junit:junit:4.11'
+	}
+	
+
+	eclipse {
+		classpath {
+			file {
+				whenMerged { classpath ->
+					classpath.configure classpath.entries.grep { entry ->
+						!(entry instanceof org.gradle.plugins.ide.eclipse.model.Library)
+					}
+				}
+			}
+		}
+
+	}
+	
+	
+	task mkdirs << {
+		["src/main/generated", "src/main/java", "src/main/resources", "src/test/java", "src/test/resources"].each {
+			def path = "${projectDir}/${it}"
+			ant.mkdir(dir: path)
+			ant.touch(file: "${path}/.gitkeep")
+		}
+	}
+	
+	
+}
+
+project(':base') {
+	dependencies {
+	
+	}
+	
+}
+
+project(':shop_front') {
+
+	configurations {
+		spi
+	}
+
+	dependencies {
+		compile project(':base')
+		
+		compile("org.springframework.boot:spring-boot-starter-thymeleaf:${springBootVersion}")
+	}
+
+	task spiJar(type: Jar) {
+		baseName = 'api-spi'
+		dependsOn classes
+		from sourceSets.main.output
+		include('jp/shop/base/**')
+	}
+
+	artifacts {
+		spi spiJar
+	}
+}
+
+project(':shop_manager') {
+
+	configurations {
+		spi
+	}
+
+	dependencies {
+		compile project(':base')
+		
+		compile("org.springframework.boot:spring-boot-starter-thymeleaf:${springBootVersion}")
+	}
+
+	task spiJar(type: Jar) {
+		baseName = 'api-spi'
+		dependsOn classes
+		from sourceSets.main.output
+		include('jp/shop/base/**')
+	}
+	
+	artifacts {
+		spi spiJar
+	}
+}
+
+project(':shop_batch') {
+	apply plugin: 'spring-boot'
+
+	configurations {
+		spi
+	}
+
+	dependencies {
+		compile project(':base')
+	}
+
+	task spiJar(type: Jar) {
+		baseName = 'api-spi'
+		dependsOn classes
+		from sourceSets.main.output
+		include('jp/shop/base/**')
+	}
+	
+	artifacts {
+		spi spiJar
+	}
+}
+
+task wrapper(type: Wrapper) {
+	gradleVersion = '1.12'
+}
+
